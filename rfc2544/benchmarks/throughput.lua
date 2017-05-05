@@ -1,4 +1,4 @@
-package.path = package.path .. "rfc2544/?.lua"
+package.path = "rfc2544/?.lua"
 
 local standalone = false
 if master == nil then
@@ -11,7 +11,7 @@ local memory        = require "memory"
 local device        = require "device"
 local filter        = require "filter"
 local ffi           = require "ffi"
-local barrier       = require "barrier"
+local barrier       = require "utils.barrier"
 local timer         = require "timer"
 local utils         = require "utils.utils"
 local arp           = require "proto.arp"
