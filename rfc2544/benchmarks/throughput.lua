@@ -341,8 +341,7 @@ end
 --for standalone benchmark
 if standalone then
     function master()
-        local args = utils.parseArguments(arg)
-        local txPort, rxPort = args.txport, args.rxport
+        local txPort, rxPort = 1, 1
         if not txPort or not rxPort then
             return print("usage: --txport <txport> --rxport <rxport> --duration <duration> --numiterations <numiterations>")
         end
@@ -385,8 +384,8 @@ if standalone then
         bench:init({
             txQueues = {txDev:getTxQueue(1), txDev:getTxQueue(2), txDev:getTxQueue(3)}, 
             rxQueues = {rxDev:getRxQueue(0)}, 
-            duration = args.duration,
-            numIterations = args.numiterations,
+            duration = 60,
+            numIterations = 1,
             skipConf = true,
         })
         

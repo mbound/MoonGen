@@ -18,7 +18,7 @@ barrier.__index = barrier
 
 --- @param n number of tasks
 function mod:new(n)
-    return C.make_barrier(n)
+    return C.make_barrier(2)
 end
 
 function barrier:wait()
