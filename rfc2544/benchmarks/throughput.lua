@@ -47,11 +47,11 @@ end
 
 function benchmark:config()
     self.undoStack = {}
-    utils.addInterfaceIP(self.dut.ifIn, "198.18.1.1", 24)
-    table.insert(self.undoStack, {foo = utils.delInterfaceIP, args = {self.dut.ifIn, "198.18.1.1", 24}})
+    utils.addInterfaceIP(self.dut.ifIn, "192.168.1.1", 24)
+    table.insert(self.undoStack, {foo = utils.delInterfaceIP, args = {self.dut.ifIn, "192.168.1.1", 24}})
 
-    utils.addInterfaceIP(self.dut.ifOut, "198.19.1.1", 24)
-    table.insert(self.undoStack, {foo = utils.delInterfaceIP, args = {self.dut.ifOut, "198.19.1.1", 24}})
+    utils.addInterfaceIP(self.dut.ifOut, "192.168.1.1", 24)
+    table.insert(self.undoStack, {foo = utils.delInterfaceIP, args = {self.dut.ifOut, "192.168.1.1", 24}})
 end
 
 function benchmark:undoConfig()
@@ -247,7 +247,7 @@ function benchmark:bench(frameSize)
 end
 
 function throughputLoadSlave(queue, port, frameSize, duration, modifier, bar)
-    local ethDst = arp.blockingLookup("198.18.1.1", 10)
+    local ethDst = arp.blockingLookup("192.168.1.1", 10)
     --TODO: error on timeout
 
     --wait for counter slave
@@ -272,8 +272,8 @@ function throughputLoadSlave(queue, port, frameSize, duration, modifier, bar)
 
             -- if ipDest is dynamical created it is overwritten
             -- does not affect performance, as self fill is done before any packet is sent
-            ip4Src = "198.18.1.2",
-            ip4Dst = "198.19.1.2",
+            ip4Src = "192.168.1.2",
+            ip4Dst = "192.168.1.2",
             udpSrc = UDP_PORT,
             -- udpSrc will be set later as it varies
         }
@@ -341,7 +341,7 @@ end
 --for standalone benchmark
 if standalone then
     function master()
-        local txPort, rxPort = 1, 1
+        local txPort, rxPort = 0, 0
         if not txPort or not rxPort then
             return print("usage: --txport <txport> --rxport <rxport> --duration <duration> --numiterations <numiterations>")
         end
@@ -362,7 +362,7 @@ if standalone then
                 { 
                     txQueue = txDev:getTxQueue(0),
                     rxQueue = txDev:getRxQueue(1),
-                    ips = {"198.18.1.2", "198.19.1.2"}
+                    ips = {"192.168.1.2", "192.168.1.2"}
                 }
             })
         else
@@ -370,12 +370,12 @@ if standalone then
                 {
                     txQueue = txDev:getTxQueue(0),
                     rxQueue = txDev:getRxQueue(1),
-                    ips = {"198.18.1.2"}
+                    ips = {"192.168.1.2"}
                 },
                 {
                     txQueue = rxDev:getTxQueue(0),
                     rxQueue = rxDev:getRxQueue(1),
-                    ips = {"198.19.1.2", "198.18.1.1"}
+                    ips = {"192.168.1.2", "192.168.1.1"}
                 }
             })
         end
