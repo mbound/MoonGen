@@ -32,7 +32,7 @@ setmetatable(benchmark, {__call = benchmark.create})
 function benchmark:init(arg)
     self.duration = arg.duration or 10
     self.rateThreshold = arg.rateThreshold or 10
-    self.maxLossRate = arg.maxLossRate or 0.001
+    self.maxLossRate = arg.maxLossRate or 0.0 --0.001
 
     self.rxQueues = arg.rxQueues
     self.txQueues = arg.txQueues
@@ -265,7 +265,7 @@ function throughputLoadSlave(queue, port, frameSize, duration, modifier, bar)
         pkt:fill{
             pktLength = frameSize - 4, -- self sets all length headers fields in all used protocols, -4 for FCS
             ethSrc = queue, -- get the src mac from the device
-            ethDst = ethDst,
+            ethDst = "04:18:d6:f1:3b:6c",
             -- TODO: too slow with conditional -- eventual launch a second slave for self
             -- ethDst SHOULD be in 1% of the frames the hardware broadcast address
             -- for switches ethDst also SHOULD be randomized
@@ -341,7 +341,7 @@ end
 --for standalone benchmark
 if standalone then
     function master()
-        local txPort, rxPort = 0, 0
+        local txPort, rxPort = 1, 1
         if not txPort or not rxPort then
             return print("usage: --txport <txport> --rxport <rxport> --duration <duration> --numiterations <numiterations>")
         end
@@ -357,9 +357,9 @@ if standalone then
             rxDev = device.config({port = rxPort, rxQueues = 2, txQueues = 3})
         end
         device.waitForLinks()
-        if txPort == rxPort then 
+        if txPort == rxPort then
             dpdk.launchLua(arp.arpTask, {
-                { 
+                {
                     txQueue = txDev:getTxQueue(0),
                     rxQueue = txDev:getRxQueue(1),
                     ips = {"192.168.1.2", "192.168.1.2"}
