@@ -34,6 +34,7 @@ setmetatable(benchmark, {__call = benchmark.create})
 function benchmark:init(arg)
     self.duration = arg.duration or 10
     self.rateThreshold = arg.rateThreshold or 10
+    --ARGUMENTS: Alterar esse valor para a tolerância de perda de pacotes (%)
     self.maxLossRate = arg.maxLossRate or 0.0 --0.001
 
     self.rxQueues = arg.rxQueues
@@ -49,9 +50,10 @@ end
 
 function benchmark:config()
     self.undoStack = {}
+    --ARGUMENTS: Alterar esses ips para o ip da interface(.1) que irá enviar os pacotes
     utils.addInterfaceIP(self.dut.ifIn, "192.168.1.1", 24)
     table.insert(self.undoStack, {foo = utils.delInterfaceIP, args = {self.dut.ifIn, "192.168.1.1", 24}})
-
+    --ARGUMENTS: Alterar esses ips para o ip da interface(.1) que irá receber os pacotes
     utils.addInterfaceIP(self.dut.ifOut, "192.168.1.1", 24)
     table.insert(self.undoStack, {foo = utils.delInterfaceIP, args = {self.dut.ifOut, "192.168.1.1", 24}})
 end
@@ -249,6 +251,7 @@ function benchmark:bench(frameSize)
 end
 
 function throughputLoadSlave(queue, port, frameSize, duration, modifier, bar)
+    --ARGUMENTS: Alterar esse valor para o ip da interface(.1) que irá enviar os pacotes
     local ethDst = arp.blockingLookup("192.168.1.1", 10)
     --TODO: error on timeout
 
@@ -267,6 +270,7 @@ function throughputLoadSlave(queue, port, frameSize, duration, modifier, bar)
         pkt:fill{
             pktLength = frameSize - 4, -- self sets all length headers fields in all used protocols, -4 for FCS
             ethSrc = queue, -- get the src mac from the device
+	    --ARGUMENTS: Alterar esse valor para endereço MAC da interface(DUT) que irá receber os pacotes
             ethDst = "04:18:d6:f1:3b:6c",
             -- TODO: too slow with conditional -- eventual launch a second slave for self
             -- ethDst SHOULD be in 1% of the frames the hardware broadcast address
@@ -274,6 +278,7 @@ function throughputLoadSlave(queue, port, frameSize, duration, modifier, bar)
 
             -- if ipDest is dynamical created it is overwritten
             -- does not affect performance, as self fill is done before any packet is sent
+	    --ARGUMENTS: Atribuir a esses valores os ips das interfaces de envio e recebimento de pacotes respectivamente
             ip4Src = "192.168.1.2",
             ip4Dst = "192.168.1.2",
             udpSrc = UDP_PORT,
@@ -343,6 +348,7 @@ end
 --for standalone benchmark
 if standalone then
     function master()
+	--ARGUMENTS: Alterar esses valores para os identificadores das placas de rede (o MoonGen diz os ids na vinculação das interfaces)
         local txPort, rxPort = 0, 0
         if not txPort or not rxPort then
             return print("usage: --txport <txport> --rxport <rxport> --duration <duration> --numiterations <numiterations>")
@@ -364,6 +370,7 @@ if standalone then
                 {
                     txQueue = txDev:getTxQueue(0),
                     rxQueue = txDev:getRxQueue(1),
+		    --ARGUMENTS: Alterar esses valores para os ips da interface de envio e recebimento (caso seja a mesma placa de rede)
                     ips = {"192.168.1.2", "192.168.1.2"}
                 }
             })
@@ -372,11 +379,13 @@ if standalone then
                 {
                     txQueue = txDev:getTxQueue(0),
                     rxQueue = txDev:getRxQueue(1),
+		    --ARGUMENTS: Alterar esse valor para o ip da interface de envio
                     ips = {"192.168.1.2"}
                 },
                 {
                     txQueue = rxDev:getTxQueue(0),
                     rxQueue = rxDev:getRxQueue(1),
+		    --ARGUMENTS: Alterar esse valor para o ip da interface de recebimento e o ip da interface de recebimento do DUT
                     ips = {"192.168.1.2", "192.168.1.1"}
                 }
             })
@@ -386,7 +395,9 @@ if standalone then
         bench:init({
             txQueues = {txDev:getTxQueue(1), txDev:getTxQueue(2), txDev:getTxQueue(3)}, 
             rxQueues = {rxDev:getRxQueue(0)}, 
+	    --ARGUMENTS: Alterar a duração dos testes (segundos)
             duration = 60,
+	    --ARGUMENTS: Alterar o número de iterações (1 é o padrão mais de 1 é para estatística)
             numIterations = 1,
             skipConf = true,
         })
