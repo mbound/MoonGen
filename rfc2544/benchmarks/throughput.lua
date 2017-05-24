@@ -1,3 +1,4 @@
+
 package.path = "rfc2544/?.lua"
 
 local standalone = false
@@ -6,6 +7,7 @@ if master == nil then
         master = "dummy"
 end
 
+local moongen       = require "moongen"
 local dpdk          = require "dpdk"
 local memory        = require "memory"
 local device        = require "device"
@@ -175,7 +177,7 @@ function benchmark:bench(frameSize)
         --init maximal transfer rate without packetloss of this iteration to zero
         results[iteration] = {spkts = 0, rpkts = 0, mpps = 0, frameSize = frameSize}
         -- loop until no packetloss
-        while dpdk.running() do
+        while moongen.running() do
             
             -- workaround for rate bug
             local numQueues = rate > (64 * 64) / (84 * 84) * maxLinkRate and rate < maxLinkRate and 3 or 1
@@ -196,11 +198,11 @@ function benchmark:bench(frameSize)
             local loadTasks = {}
             -- traffic generator
             for i=1, numQueues do
-                table.insert(loadTasks, dpdk.launchLua("throughputLoadSlave", self.txQueues[i], port, frameSize, self.duration, mod, bar))
+                table.insert(loadTasks, moongen.startTask("throughputLoadSlave", self.txQueues[i], port, frameSize, self.duration, mod, bar))
             end
             
             -- count the incoming packets
-            local ctrTask = dpdk.launchLua("throughputCounterSlave", self.rxQueues[1], port, frameSize, self.duration, bar)
+            local ctrTask = moongen.startTask("throughputCounterSlave", self.rxQueues[1], port, frameSize, self.duration, bar)
             
             -- wait until all slaves are finished
             local spkts = 0
@@ -234,7 +236,7 @@ function benchmark:bench(frameSize)
             printf("changing rate from %d MBit/s to %d MBit/s", lastRate, rate)
             -- TODO: maybe wait for resettlement of DUT (RFC2544)
             port = port + 1
-	    dpdk.sleepMillis(100)
+	    moongen.sleepMillis(100)
         --device.reclaimTxBuffers()
         end
     end
@@ -341,7 +343,7 @@ end
 --for standalone benchmark
 if standalone then
     function master()
-        local txPort, rxPort = 1, 1
+        local txPort, rxPort = 0, 0
         if not txPort or not rxPort then
             return print("usage: --txport <txport> --rxport <rxport> --duration <duration> --numiterations <numiterations>")
         end
@@ -358,7 +360,7 @@ if standalone then
         end
         device.waitForLinks()
         if txPort == rxPort then
-            dpdk.launchLua(arp.arpTask, {
+            moongen.startTask(arp.arpTask, {
                 {
                     txQueue = txDev:getTxQueue(0),
                     rxQueue = txDev:getRxQueue(1),
@@ -366,7 +368,7 @@ if standalone then
                 }
             })
         else
-            dpdk.launchLua(arp.arpTask, {
+            moongen.startTask(arp.arpTask, {
                 {
                     txQueue = txDev:getTxQueue(0),
                     rxQueue = txDev:getRxQueue(1),
@@ -379,7 +381,7 @@ if standalone then
                 }
             })
         end
-        
+      
         local bench = benchmark()
         bench:init({
             txQueues = {txDev:getTxQueue(1), txDev:getTxQueue(2), txDev:getTxQueue(3)}, 
