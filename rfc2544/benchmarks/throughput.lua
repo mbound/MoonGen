@@ -1,4 +1,5 @@
-package.path = package.path .. "rfc2544/?.lua"
+
+package.path = "rfc2544/?.lua"
 
 local standalone = false
 if master == nil then
@@ -6,12 +7,13 @@ if master == nil then
         master = "dummy"
 end
 
+local moongen       = require "moongen"
 local dpdk          = require "dpdk"
 local memory        = require "memory"
 local device        = require "device"
 local filter        = require "filter"
 local ffi           = require "ffi"
-local barrier       = require "barrier"
+local barrier       = require "utils.barrier"
 local timer         = require "timer"
 local utils         = require "utils.utils"
 local arp           = require "proto.arp"
@@ -32,7 +34,8 @@ setmetatable(benchmark, {__call = benchmark.create})
 function benchmark:init(arg)
     self.duration = arg.duration or 10
     self.rateThreshold = arg.rateThreshold or 10
-    self.maxLossRate = arg.maxLossRate or 0.001
+    --ARGUMENTS: Alterar esse valor para a tolerância de perda de pacotes (%)
+    self.maxLossRate = arg.maxLossRate or 0.0 --0.001
 
     self.rxQueues = arg.rxQueues
     self.txQueues = arg.txQueues
@@ -47,11 +50,12 @@ end
 
 function benchmark:config()
     self.undoStack = {}
-    utils.addInterfaceIP(self.dut.ifIn, "198.18.1.1", 24)
-    table.insert(self.undoStack, {foo = utils.delInterfaceIP, args = {self.dut.ifIn, "198.18.1.1", 24}})
-
-    utils.addInterfaceIP(self.dut.ifOut, "198.19.1.1", 24)
-    table.insert(self.undoStack, {foo = utils.delInterfaceIP, args = {self.dut.ifOut, "198.19.1.1", 24}})
+    --ARGUMENTS: Alterar esses ips para o ip da interface(.1) que irá enviar os pacotes
+    utils.addInterfaceIP(self.dut.ifIn, "192.168.1.1", 24)
+    table.insert(self.undoStack, {foo = utils.delInterfaceIP, args = {self.dut.ifIn, "192.168.1.1", 24}})
+    --ARGUMENTS: Alterar esses ips para o ip da interface(.1) que irá receber os pacotes
+    utils.addInterfaceIP(self.dut.ifOut, "192.168.1.1", 24)
+    table.insert(self.undoStack, {foo = utils.delInterfaceIP, args = {self.dut.ifOut, "192.168.1.1", 24}})
 end
 
 function benchmark:undoConfig()
@@ -175,7 +179,7 @@ function benchmark:bench(frameSize)
         --init maximal transfer rate without packetloss of this iteration to zero
         results[iteration] = {spkts = 0, rpkts = 0, mpps = 0, frameSize = frameSize}
         -- loop until no packetloss
-        while dpdk.running() do
+        while moongen.running() do
             
             -- workaround for rate bug
             local numQueues = rate > (64 * 64) / (84 * 84) * maxLinkRate and rate < maxLinkRate and 3 or 1
@@ -196,11 +200,11 @@ function benchmark:bench(frameSize)
             local loadTasks = {}
             -- traffic generator
             for i=1, numQueues do
-                table.insert(loadTasks, dpdk.launchLua("throughputLoadSlave", self.txQueues[i], port, frameSize, self.duration, mod, bar))
+                table.insert(loadTasks, moongen.startTask("throughputLoadSlave", self.txQueues[i], port, frameSize, self.duration, mod, bar))
             end
             
             -- count the incoming packets
-            local ctrTask = dpdk.launchLua("throughputCounterSlave", self.rxQueues[1], port, frameSize, self.duration, bar)
+            local ctrTask = moongen.startTask("throughputCounterSlave", self.rxQueues[1], port, frameSize, self.duration, bar)
             
             -- wait until all slaves are finished
             local spkts = 0
@@ -234,7 +238,7 @@ function benchmark:bench(frameSize)
             printf("changing rate from %d MBit/s to %d MBit/s", lastRate, rate)
             -- TODO: maybe wait for resettlement of DUT (RFC2544)
             port = port + 1
-	    dpdk.sleepMillis(100)
+	    moongen.sleepMillis(100)
         --device.reclaimTxBuffers()
         end
     end
@@ -247,7 +251,8 @@ function benchmark:bench(frameSize)
 end
 
 function throughputLoadSlave(queue, port, frameSize, duration, modifier, bar)
-    local ethDst = arp.blockingLookup("198.18.1.1", 10)
+    --ARGUMENTS: Alterar esse valor para o ip da interface(.1) que irá enviar os pacotes
+    local ethDst = arp.blockingLookup("192.168.1.1", 10)
     --TODO: error on timeout
 
     --wait for counter slave
@@ -265,15 +270,17 @@ function throughputLoadSlave(queue, port, frameSize, duration, modifier, bar)
         pkt:fill{
             pktLength = frameSize - 4, -- self sets all length headers fields in all used protocols, -4 for FCS
             ethSrc = queue, -- get the src mac from the device
-            ethDst = ethDst,
+	    --ARGUMENTS: Alterar esse valor para endereço MAC da interface(DUT) que irá receber os pacotes
+            ethDst = "04:18:d6:f1:3b:6c",
             -- TODO: too slow with conditional -- eventual launch a second slave for self
             -- ethDst SHOULD be in 1% of the frames the hardware broadcast address
             -- for switches ethDst also SHOULD be randomized
 
             -- if ipDest is dynamical created it is overwritten
             -- does not affect performance, as self fill is done before any packet is sent
-            ip4Src = "198.18.1.2",
-            ip4Dst = "198.19.1.2",
+	    --ARGUMENTS: Atribuir a esses valores os ips das interfaces de envio e recebimento de pacotes respectivamente
+            ip4Src = "192.168.1.2",
+            ip4Dst = "192.168.1.2",
             udpSrc = UDP_PORT,
             -- udpSrc will be set later as it varies
         }
@@ -341,8 +348,8 @@ end
 --for standalone benchmark
 if standalone then
     function master()
-        local args = utils.parseArguments(arg)
-        local txPort, rxPort = args.txport, args.rxport
+	--ARGUMENTS: Alterar esses valores para os identificadores das placas de rede (o MoonGen diz os ids na vinculação das interfaces)
+        local txPort, rxPort = 0, 0
         if not txPort or not rxPort then
             return print("usage: --txport <txport> --rxport <rxport> --duration <duration> --numiterations <numiterations>")
         end
@@ -358,35 +365,40 @@ if standalone then
             rxDev = device.config({port = rxPort, rxQueues = 2, txQueues = 3})
         end
         device.waitForLinks()
-        if txPort == rxPort then 
-            dpdk.launchLua(arp.arpTask, {
-                { 
-                    txQueue = txDev:getTxQueue(0),
-                    rxQueue = txDev:getRxQueue(1),
-                    ips = {"198.18.1.2", "198.19.1.2"}
-                }
-            })
-        else
-            dpdk.launchLua(arp.arpTask, {
+        if txPort == rxPort then
+            moongen.startTask(arp.arpTask, {
                 {
                     txQueue = txDev:getTxQueue(0),
                     rxQueue = txDev:getRxQueue(1),
-                    ips = {"198.18.1.2"}
+		    --ARGUMENTS: Alterar esses valores para os ips da interface de envio e recebimento (caso seja a mesma placa de rede)
+                    ips = {"192.168.1.2", "192.168.1.2"}
+                }
+            })
+        else
+            moongen.startTask(arp.arpTask, {
+                {
+                    txQueue = txDev:getTxQueue(0),
+                    rxQueue = txDev:getRxQueue(1),
+		    --ARGUMENTS: Alterar esse valor para o ip da interface de envio
+                    ips = {"192.168.1.2"}
                 },
                 {
                     txQueue = rxDev:getTxQueue(0),
                     rxQueue = rxDev:getRxQueue(1),
-                    ips = {"198.19.1.2", "198.18.1.1"}
+		    --ARGUMENTS: Alterar esse valor para o ip da interface de recebimento e o ip da interface de recebimento do DUT
+                    ips = {"192.168.1.2", "192.168.1.1"}
                 }
             })
         end
-        
+      
         local bench = benchmark()
         bench:init({
             txQueues = {txDev:getTxQueue(1), txDev:getTxQueue(2), txDev:getTxQueue(3)}, 
             rxQueues = {rxDev:getRxQueue(0)}, 
-            duration = args.duration,
-            numIterations = args.numiterations,
+	    --ARGUMENTS: Alterar a duração dos testes (segundos)
+            duration = 60,
+	    --ARGUMENTS: Alterar o número de iterações (1 é o padrão mais de 1 é para estatística)
+            numIterations = 1,
             skipConf = true,
         })
         
